@@ -33,38 +33,52 @@ def clean_num(x):
 @st.cache_data
 def load_price_list_advanced(file):
     try:
+        # Mặc định dòng tiêu đề là dòng thứ 10 (tức là index = 9)
+        # Nếu file của bạn tiêu đề ở dòng 1 thì sửa thành header=0
         if file.name.endswith('.csv'): df = pd.read_csv(file, header=9)
         else: df = pd.read_excel(file, header=9)
         
+        # Kiểm tra sơ bộ
+        st.caption(f"Đã đọc file: {df.shape[0]} dòng, {df.shape[1]} cột.") 
+        
         items = []
         for index, row in df.iterrows():
+            # Kiểm tra file có đủ cột không (Code cũ yêu cầu ít nhất 18 cột để lấy giá bán lẻ)
+            if len(row) < 18: continue 
+
             ma_vt = str(row.iloc[2]).strip()
             ten_vt = str(row.iloc[4]).strip()
             dvt = str(row.iloc[5]).strip()
             
             if ten_vt == 'nan' or ten_vt == '': continue
             
-            # TỒN KHO
+            # TỒN KHO (Cột H - index 7)
             sl_ton = clean_num(row.iloc[7])
             gia_ton = clean_num(row.iloc[8])
             if sl_ton > 0:
                 label = f"📦 [TỒN KHO] {ten_vt} (SL: {sl_ton:,.0f}) - Giá: {gia_ton:,.0f}"
                 items.append([ma_vt, ten_vt, dvt, "Tồn kho", gia_ton, label])
             
-            # HỢP ĐỒNG
+            # HỢP ĐỒNG (Cột L - index 11)
             gia_hd = clean_num(row.iloc[11])
             if gia_hd > 0:
                 label = f"📝 [HỢP ĐỒNG] {ten_vt} - Giá: {gia_hd:,.0f}"
                 items.append([ma_vt, ten_vt, dvt, "Hợp đồng", gia_hd, label])
                 
-            # BÁN LẺ
+            # BÁN LẺ (Cột R - index 17)
             gia_le = clean_num(row.iloc[17])
             if gia_le > 0:
                 label = f"💰 [BÁN LẺ] {ten_vt} - Giá: {gia_le:,.0f}"
                 items.append([ma_vt, ten_vt, dvt, "Bán lẻ", gia_le, label])
 
+        if not items:
+            st.warning("⚠️ Đọc được file nhưng không tìm thấy vật tư nào! Hãy kiểm tra lại dòng Tiêu Đề (Header) có đúng là dòng 10 không?")
+            return None
+
         return pd.DataFrame(items, columns=["Mã VT", "Tên Gốc", "ĐVT", "Loại Giá", "Đơn Giá", "Hiển Thị"])
-    except: return None
+    except Exception as e:
+        st.error(f"❌ LỖI ĐỌC FILE: {e}")
+        return None
 
 # --- GIAO DIỆN CHÍNH ---
 st.title("🖨️ CÔNG CỤ TẠO HỒ SƠ ĐIỆN LỰC (FORM CHUẨN)")
@@ -343,4 +357,5 @@ with col_right:
                 ws_sum.set_column(6, 7, 18)
 
                 writer.close()
+
                 st.download_button("📥 TẢI FILE EXCEL CHUẨN", output.getvalue(), f"Ho_So_VTTB_{datetime.date.today()}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
