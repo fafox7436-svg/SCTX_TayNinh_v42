@@ -4,7 +4,7 @@ import io
 import datetime
 
 # --- CẤU HÌNH TRANG ---
-st.set_page_config(page_title="Tool Hồ Sơ Điện Lực (Có Sửa Chữa)", layout="wide", page_icon="🖨️")
+st.set_page_config(page_title="Tool Hồ Sơ Điện Lực (Chuẩn Đội/Tổ)", layout="wide", page_icon="🖨️")
 
 # --- KHỞI TẠO BỘ NHỚ ---
 if 'projects' not in st.session_state: st.session_state.projects = [] 
@@ -30,7 +30,7 @@ def clean_num(x):
         return float(str(x).replace(',', '').replace('.', '').strip())
     except: return 0.0
 
-# --- HÀM ĐỌC FILE GIÁ (UPDATE BÁO LỖI) ---
+# --- HÀM ĐỌC FILE GIÁ ---
 @st.cache_data
 def load_price_list_advanced(file):
     try:
@@ -71,7 +71,7 @@ def load_price_list_advanced(file):
         return None
 
 # --- GIAO DIỆN CHÍNH ---
-st.title("🖨️ CÔNG CỤ TẠO HỒ SƠ ĐIỆN LỰC (V2 - CÓ CHỈNH SỬA)")
+st.title("🖨️ CÔNG CỤ TẠO HỒ SƠ ĐIỆN LỰC (FORM ĐỘI/TỔ)")
 st.caption("Nhập liệu -> Lưu trạm -> Kiểm tra/Sửa chữa -> Xuất Excel")
 st.markdown("---")
 
@@ -148,10 +148,9 @@ with col_right:
     if st.session_state.projects:
         st.success(f"Đang có {len(st.session_state.projects)} trạm đã lưu.")
         
-        # --- PHẦN MỚI: QUẢN LÝ CÁC TRẠM ĐÃ LƯU ---
+        # --- PHẦN QUẢN LÝ CÁC TRẠM ĐÃ LƯU ---
         st.write("### 🛠️ Chỉnh sửa các trạm đã lưu:")
         
-        # Duyệt qua từng trạm để hiển thị
         for i, project in enumerate(st.session_state.projects):
             with st.expander(f"Trạm {i+1}: {project['name']}", expanded=False):
                 col_del, col_info = st.columns([1, 3])
@@ -160,16 +159,14 @@ with col_right:
                         st.session_state.projects.pop(i)
                         st.rerun()
                 
-                # Hiển thị bảng data cho phép sửa trực tiếp (Excel-like)
+                # Hiển thị bảng data cho phép sửa trực tiếp
                 st.caption("Sửa số lượng trực tiếp tại đây:")
                 edited_df = st.data_editor(
                     project['data'], 
                     key=f"edit_prj_{i}", 
-                    num_rows="dynamic", # Cho phép thêm/xóa dòng
+                    num_rows="dynamic",
                     use_container_width=True
                 )
-                
-                # Cập nhật lại dữ liệu sau khi sửa
                 st.session_state.projects[i]['data'] = edited_df
 
         st.divider()
@@ -178,6 +175,8 @@ with col_right:
         with st.expander("⚙️ CẤU HÌNH VĂN BẢN & CHỮ KÝ", expanded=True):
             col_h1, col_h2 = st.columns(2)
             with col_h1:
+                # Thêm ô nhập tên Đội
+                ten_don_vi = st.text_input("Tên Đơn Vị (Dòng 1):", value="ĐỘI QUẢN LÝ ĐIỆN CẦN ĐƯỚC")
                 so_phuong_an = st.text_input("Số Phương án:", value="....../PA-PCTN")
                 ngay_thang = st.date_input("Ngày lập:", datetime.date.today())
                 dia_diem = st.text_input("Địa điểm:", value="Tây Ninh")
@@ -185,7 +184,7 @@ with col_right:
             with col_h2:
                 nguoi_lap = st.text_input("Người lập:", value="Nguyễn Văn A")
                 to_kt = st.text_input("Tổ Kỹ Thuật:", value="Trần Văn B")
-                lanh_dao = st.text_input("Giám Đốc:", value="Ông Lãnh Đạo")
+                lanh_dao = st.text_input("Giám Đốc/Đội Trưởng:", value="Ông Lãnh Đạo")
 
         if st.button("📥 XUẤT FILE EXCEL (CHUẨN FORM)", type="primary"):
             output = io.BytesIO()
@@ -195,8 +194,15 @@ with col_right:
             # --- ĐỊNH DẠNG STYLE ---
             s_base = {'font_name': 'Times New Roman', 'font_size': 13}
             
-            f_header_left = wb.add_format({**s_base, 'bold': False, 'align': 'center', 'valign': 'top', 'text_wrap': True})
+            # Style Header Trái (Dòng 1: Đội QLĐ - KHÔNG ĐẬM)
+            f_header_left_normal = wb.add_format({**s_base, 'bold': False, 'align': 'center', 'valign': 'center', 'text_wrap': True})
+            
+            # Style Header Trái (Dòng 2: Tổ KT - IN ĐẬM)
+            f_header_left_bold = wb.add_format({**s_base, 'bold': True, 'align': 'center', 'valign': 'center', 'text_wrap': True})
+            
+            # Style Header Phải (Quốc hiệu - IN ĐẬM)
             f_header_right = wb.add_format({**s_base, 'bold': True, 'align': 'center', 'valign': 'top', 'text_wrap': True})
+            
             f_date = wb.add_format({**s_base, 'italic': True, 'align': 'center'})
             f_title = wb.add_format({**s_base, 'bold': True, 'font_size': 14, 'align': 'center'})
             f_subtitle = wb.add_format({**s_base, 'italic': True, 'align': 'center'})
@@ -211,19 +217,35 @@ with col_right:
 
             all_summary = {} 
             
+            # ==========================
             # SHEET 1: BẢNG KÊ VTTB
+            # ==========================
             ws = wb.add_worksheet("BANG_KE_VTTB")
             ws.set_paper(9) # A4
             ws.set_margins(0.7, 0.7, 0.75, 0.75)
             
-            ws.merge_range("A1:C1", "TỔNG CÔNG TY ĐIỆN LỰC MIỀN NAM\nCÔNG TY ĐIỆN LỰC TÂY NINH\n-------", f_header_left)
-            ws.merge_range("D1:G1", "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n---------------", f_header_right)
-            ws.set_row(0, 60) 
-
-            ws.merge_range("A2:C2", f"Số: {so_phuong_an}", f_header_left)
-            ws.merge_range("D2:G2", f"{dia_diem}, ngày {ngay_thang.day} tháng {ngay_thang.month} năm {ngay_thang.year}", f_date)
+            # --- HEADER SHEET 1 (SỬA LẠI THEO YÊU CẦU) ---
+            # Dòng 1: ĐỘI QUẢN LÝ ĐIỆN... (Không đậm)
+            ws.merge_range("A1:C1", ten_don_vi, f_header_left_normal)
             
-            curr = 4
+            # Dòng 2: TỔ KỸ THUẬT (In đậm)
+            ws.merge_range("A2:C2", "TỔ KỸ THUẬT", f_header_left_bold)
+            
+            # Dòng 3: Số phương án
+            ws.merge_range("A3:C3", f"Số: {so_phuong_an}", f_header_left_normal)
+
+            # Cột Phải: Quốc hiệu (Gộp dòng cho đẹp)
+            ws.merge_range("D1:G2", "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n---------------", f_header_right)
+            
+            # Ngày tháng
+            ws.merge_range("D3:G3", f"{dia_diem}, ngày {ngay_thang.day} tháng {ngay_thang.month} năm {ngay_thang.year}", f_date)
+            
+            # Chỉnh chiều cao dòng cho thoáng
+            ws.set_row(0, 20)
+            ws.set_row(1, 20)
+            
+            # Tiêu đề bảng
+            curr = 5
             ws.merge_range(curr, 0, curr, 6, "BẢNG LIỆT KÊ VẬT TƯ THIẾT BỊ", f_title)
             curr += 1
             ws.merge_range(curr, 0, curr, 6, f"(Kèm theo P.án số: {so_phuong_an})", f_subtitle)
@@ -237,7 +259,7 @@ with col_right:
             has_items_b1 = False
             for i, p in enumerate(st.session_state.projects):
                 df = p['data']
-                # Chuyển đổi số liệu sang dạng số để đảm bảo tính toán
+                # Chuyển đổi số liệu
                 df["Thay Mới"] = pd.to_numeric(df["Thay Mới"], errors='coerce').fillna(0)
                 df["Tận Dụng"] = pd.to_numeric(df["Tận Dụng"], errors='coerce').fillna(0)
                 df["Thu Hồi"] = pd.to_numeric(df["Thu Hồi"], errors='coerce').fillna(0)
@@ -265,7 +287,7 @@ with col_right:
                 ws.merge_range(curr, 0, curr, 6, "(Không có)", f_td_center)
                 curr += 1
 
-            # Loop Data Thu Hồi
+            # Bảng Thu Hồi
             curr += 2
             ws.merge_range(curr, 0, curr, 6, "BẢNG LIỆT KÊ VẬT TƯ THU HỒI", f_title)
             curr += 1
@@ -304,7 +326,7 @@ with col_right:
             # Chữ ký Sheet 1
             curr += 3
             ws.write(curr, 1, "LẬP BẢNG", f_sign_title)
-            ws.write(curr, 3, "PHÒNG KỸ THUẬT", f_sign_title)
+            ws.write(curr, 3, "TỔ KỸ THUẬT", f_sign_title)
             ws.merge_range(curr, 4, curr, 6, "GIÁM ĐỐC", f_sign_title)
             
             curr += 5
@@ -316,7 +338,9 @@ with col_right:
             ws.set_column(1, 1, 40)
             ws.set_column(2, 6, 12)
 
+            # ==========================
             # SHEET 2: TỔNG HỢP CHUNG
+            # ==========================
             for p in st.session_state.projects:
                 for _, r in p['data'].iterrows():
                     sl_moi = pd.to_numeric(r["Thay Mới"], errors='coerce')
@@ -329,16 +353,28 @@ with col_right:
             ws_sum.set_paper(9)
             ws_sum.set_margins(0.7, 0.7, 0.75, 0.75)
 
-            ws_sum.merge_range("A1:C1", "TỔNG CÔNG TY ĐIỆN LỰC MIỀN NAM\nCÔNG TY ĐIỆN LỰC TÂY NINH\n-------", f_header_left)
-            ws_sum.merge_range("D1:H1", "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n---------------", f_header_right)
-            ws_sum.set_row(0, 60)
+            # --- HEADER SHEET 2 (ĐỒNG BỘ VỚI SHEET 1 & THÊM NGÀY THÁNG) ---
+            # Dòng 1: ĐỘI... (Không đậm)
+            ws_sum.merge_range("A1:C1", ten_don_vi, f_header_left_normal)
             
-            ws_sum.merge_range(4, 0, 4, 7, "BẢNG TỔNG HỢP KHỐI LƯỢNG VÀ CHIẾT TÍNH", f_title)
+            # Dòng 2: TỔ KỸ THUẬT (In đậm)
+            ws_sum.merge_range("A2:C2", "TỔ KỸ THUẬT", f_header_left_bold)
+            
+            # Bên phải: Quốc hiệu
+            ws_sum.merge_range("D1:H2", "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n---------------", f_header_right)
+            
+            # Dòng 3: Thêm ngày tháng (FIX LỖI THIẾU NGÀY)
+            ws_sum.merge_range("D3:H3", f"{dia_diem}, ngày {ngay_thang.day} tháng {ngay_thang.month} năm {ngay_thang.year}", f_date)
+            
+            ws_sum.set_row(0, 20)
+            ws_sum.set_row(1, 20)
+            
+            ws_sum.merge_range(5, 0, 5, 7, "BẢNG TỔNG HỢP KHỐI LƯỢNG VÀ CHIẾT TÍNH", f_title)
             
             hs = ["STT", "Mã VT", "Tên Vật Tư", "Nguồn Giá", "ĐVT", "Số Lượng", "Đơn Giá", "Thành Tiền"]
-            for c, t in enumerate(hs): ws_sum.write(6, c, t, f_th)
+            for c, t in enumerate(hs): ws_sum.write(7, c, t, f_th)
             
-            ridx = 7
+            ridx = 8
             stt = 1
             total = 0
             for (ma, ten, dvt, nguon, gia), sl in sorted(all_summary.items(), key=lambda x: x[0][1]):
@@ -360,7 +396,7 @@ with col_right:
             
             ridx += 3
             ws_sum.write(ridx, 2, "LẬP BẢNG", f_sign_title)
-            ws_sum.write(ridx, 4, "PHÒNG KỸ THUẬT", f_sign_title)
+            ws_sum.write(ridx, 4, "TỔ KỸ THUẬT", f_sign_title) # Sửa thành TỔ KỸ THUẬT cho khớp header
             ws_sum.merge_range(ridx, 6, ridx, 7, "GIÁM ĐỐC", f_sign_title)
 
             ridx += 5
