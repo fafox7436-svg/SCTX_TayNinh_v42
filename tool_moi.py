@@ -4,7 +4,7 @@ import io
 import datetime
 
 # --- CẤU HÌNH TRANG ---
-st.set_page_config(page_title="Tool Hồ Sơ Điện Lực (Chuẩn Đội/Tổ)", layout="wide", page_icon="🖨️")
+st.set_page_config(page_title="Tool Hồ Sơ Điện Lực (Sửa & Thêm)", layout="wide", page_icon="🖨️")
 
 # --- KHỞI TẠO BỘ NHỚ ---
 if 'projects' not in st.session_state: st.session_state.projects = [] 
@@ -71,75 +71,75 @@ def load_price_list_advanced(file):
         return None
 
 # --- GIAO DIỆN CHÍNH ---
-st.title("🖨️ CÔNG CỤ TẠO HỒ SƠ ĐIỆN LỰC (FORM ĐỘI/TỔ)")
-st.caption("Nhập liệu -> Lưu trạm -> Kiểm tra/Sửa chữa -> Xuất Excel")
+st.title("🖨️ CÔNG CỤ TẠO HỒ SƠ ĐIỆN LỰC (V3 - FULL TÍNH NĂNG)")
+st.caption("Nhập liệu -> Lưu trạm -> Bổ sung/Sửa chữa -> Xuất Excel")
 st.markdown("---")
+
+# Load data trước nếu có file (để dùng chung cho cả 2 cột)
+price_file = st.sidebar.file_uploader("📂 1. NẠP FILE GIÁ TRƯỚC (.xlsx)", type=['csv', 'xlsx'])
+df_pro = None
+if price_file:
+    df_pro = load_price_list_advanced(price_file)
+
+if st.sidebar.button("🗑️ Xóa hết làm lại", type="primary"):
+    st.session_state.projects = []
+    st.session_state.current_items = []
+    st.rerun()
 
 col_left, col_right = st.columns([1, 1.5])
 
 # --- CỘT TRÁI: NHẬP LIỆU ---
 with col_left:
-    st.header("1. Nhập Liệu")
-    price_file = st.file_uploader("File Giá (.xlsx, .csv)", type=['csv', 'xlsx'])
+    st.header("1. Nhập Liệu Mới")
     
-    if st.button("🗑️ Xóa làm lại từ đầu", type="primary"):
-        st.session_state.projects = []
-        st.session_state.current_items = []
-        st.rerun()
-    
-    st.divider()
-
-    if price_file:
-        df_pro = load_price_list_advanced(price_file)
+    if df_pro is not None:
+        # Nhập tên trạm
+        prj_name = st.text_input("Tên Trạm / Hạng mục:", placeholder="VD: Trạm T1 Phước Đông")
         
-        if df_pro is not None:
-            # Nhập tên trạm
-            prj_name = st.text_input("Tên Trạm / Hạng mục:", placeholder="VD: Trạm T1 Phước Đông")
+        # Chọn vật tư
+        selected_label = st.selectbox("Chọn vật tư:", options=df_pro["Hiển Thị"], index=None)
+        
+        c1, c2, c3 = st.columns(3)
+        qty_new = c1.number_input("Thay Mới", min_value=0.0, step=1.0)
+        qty_reuse = c2.number_input("Tận Dụng", min_value=0.0, step=1.0)
+        qty_rec = c3.number_input("Thu Hồi", min_value=0.0, step=1.0)
+        note = st.text_input("Ghi chú:")
+        
+        # Nút Thêm
+        if st.button("➕ Thêm vào danh sách tạm"):
+            if selected_label:
+                item_data = df_pro[df_pro["Hiển Thị"] == selected_label].iloc[0]
+                st.session_state.current_items.append({
+                    "Mã VT": item_data["Mã VT"],
+                    "Tên VTTB": item_data["Tên Gốc"],
+                    "ĐVT": item_data["ĐVT"],
+                    "Nguồn Giá": item_data["Loại Giá"],
+                    "Đơn Giá": item_data["Đơn Giá"],
+                    "Thay Mới": qty_new,
+                    "Tận Dụng": qty_reuse,
+                    "Thu Hồi": qty_rec,
+                    "Ghi Chú": note
+                })
+                st.toast(f"Đã thêm: {item_data['Tên Gốc']}")
+        
+        # Hiển thị danh sách đang nhập (Tạm)
+        if st.session_state.current_items:
+            st.write("---")
+            st.caption("Danh sách đang nhập (Chưa lưu):")
+            df_curr = pd.DataFrame(st.session_state.current_items)
             
-            # Chọn vật tư
-            selected_label = st.selectbox("Chọn vật tư:", options=df_pro["Hiển Thị"], index=None)
-            
-            c1, c2, c3 = st.columns(3)
-            qty_new = c1.number_input("Thay Mới", min_value=0.0, step=1.0)
-            qty_reuse = c2.number_input("Tận Dụng", min_value=0.0, step=1.0)
-            qty_rec = c3.number_input("Thu Hồi", min_value=0.0, step=1.0)
-            note = st.text_input("Ghi chú:")
-            
-            # Nút Thêm
-            if st.button("➕ Thêm vào danh sách tạm"):
-                if selected_label:
-                    item_data = df_pro[df_pro["Hiển Thị"] == selected_label].iloc[0]
-                    st.session_state.current_items.append({
-                        "Mã VT": item_data["Mã VT"],
-                        "Tên VTTB": item_data["Tên Gốc"],
-                        "ĐVT": item_data["ĐVT"],
-                        "Nguồn Giá": item_data["Loại Giá"],
-                        "Đơn Giá": item_data["Đơn Giá"],
-                        "Thay Mới": qty_new,
-                        "Tận Dụng": qty_reuse,
-                        "Thu Hồi": qty_rec,
-                        "Ghi Chú": note
-                    })
-                    st.toast(f"Đã thêm: {item_data['Tên Gốc']}")
-            
-            # Hiển thị danh sách đang nhập (Tạm)
-            if st.session_state.current_items:
-                st.write("---")
-                st.caption("Danh sách đang nhập (Chưa lưu):")
-                df_curr = pd.DataFrame(st.session_state.current_items)
-                
-                # Cho phép xóa dòng trong danh sách tạm
-                edited_curr = st.data_editor(df_curr, num_rows="dynamic", key="editor_temp")
-                st.session_state.current_items = edited_curr.to_dict('records')
+            # Cho phép xóa dòng trong danh sách tạm
+            edited_curr = st.data_editor(df_curr, num_rows="dynamic", key="editor_temp")
+            st.session_state.current_items = edited_curr.to_dict('records')
 
-                if st.button("💾 LƯU TRẠM NÀY XUỐNG DƯỚI"):
-                    if prj_name:
-                        st.session_state.projects.append({"name": prj_name, "data": pd.DataFrame(st.session_state.current_items)})
-                        st.session_state.current_items = [] # Clear tạm
-                        st.rerun()
-                    else: st.warning("Vui lòng nhập tên trạm!")
+            if st.button("💾 LƯU TRẠM NÀY XUỐNG DƯỚI"):
+                if prj_name:
+                    st.session_state.projects.append({"name": prj_name, "data": pd.DataFrame(st.session_state.current_items)})
+                    st.session_state.current_items = [] # Clear tạm
+                    st.rerun()
+                else: st.warning("Vui lòng nhập tên trạm!")
     else:
-        st.info("👈 Nạp file Giá trước.")
+        st.info("👈 Vui lòng nạp File Giá ở Menu bên trái trước!")
 
 # --- CỘT PHẢI: QUẢN LÝ & XUẤT ---
 with col_right:
@@ -149,18 +149,18 @@ with col_right:
         st.success(f"Đang có {len(st.session_state.projects)} trạm đã lưu.")
         
         # --- PHẦN QUẢN LÝ CÁC TRẠM ĐÃ LƯU ---
-        st.write("### 🛠️ Chỉnh sửa các trạm đã lưu:")
+        st.write("### 🛠️ Chỉnh sửa / Bổ sung vật tư:")
         
         for i, project in enumerate(st.session_state.projects):
             with st.expander(f"Trạm {i+1}: {project['name']}", expanded=False):
                 col_del, col_info = st.columns([1, 3])
                 with col_del:
-                    if st.button(f"🗑️ Xóa Trạm {i+1}", key=f"del_{i}"):
+                    if st.button(f"🗑️ Xóa Trạm", key=f"del_{i}"):
                         st.session_state.projects.pop(i)
                         st.rerun()
                 
-                # Hiển thị bảng data cho phép sửa trực tiếp
-                st.caption("Sửa số lượng trực tiếp tại đây:")
+                # 1. Bảng sửa chữa trực tiếp
+                st.caption("Sửa số lượng hoặc xóa dòng:")
                 edited_df = st.data_editor(
                     project['data'], 
                     key=f"edit_prj_{i}", 
@@ -169,13 +169,48 @@ with col_right:
                 )
                 st.session_state.projects[i]['data'] = edited_df
 
+                # 2. Tính năng thêm vật tư mới vào trạm này
+                st.markdown("---")
+                st.markdown("##### ➕ Bổ sung thêm vật tư vào trạm này:")
+                if df_pro is not None:
+                    # Dùng key unique (thêm _{i}) để không bị trùng lặp giữa các trạm
+                    sel_add = st.selectbox("Chọn vật tư thêm:", df_pro["Hiển Thị"], key=f"sel_add_{i}", index=None)
+                    
+                    ca1, ca2, ca3 = st.columns(3)
+                    qn_add = ca1.number_input("Mới", min_value=0.0, step=1.0, key=f"qn_{i}")
+                    qu_add = ca2.number_input("Tận Dụng", min_value=0.0, step=1.0, key=f"qu_{i}")
+                    qr_add = ca3.number_input("Thu Hồi", min_value=0.0, step=1.0, key=f"qr_{i}")
+                    note_add = st.text_input("Ghi chú:", key=f"nt_{i}")
+
+                    if st.button("Thêm ngay", key=f"btn_add_{i}"):
+                        if sel_add:
+                            item_add = df_pro[df_pro["Hiển Thị"] == sel_add].iloc[0]
+                            new_row = {
+                                "Mã VT": item_add["Mã VT"],
+                                "Tên VTTB": item_add["Tên Gốc"],
+                                "ĐVT": item_add["ĐVT"],
+                                "Nguồn Giá": item_add["Loại Giá"],
+                                "Đơn Giá": item_add["Đơn Giá"],
+                                "Thay Mới": qn_add,
+                                "Tận Dụng": qu_add,
+                                "Thu Hồi": qr_add,
+                                "Ghi Chú": note_add
+                            }
+                            # Nối row mới vào DataFrame của trạm này
+                            st.session_state.projects[i]['data'] = pd.concat([st.session_state.projects[i]['data'], pd.DataFrame([new_row])], ignore_index=True)
+                            st.toast(f"Đã thêm {item_add['Tên Gốc']} vào {project['name']}")
+                            st.rerun()
+                        else:
+                            st.warning("Chưa chọn vật tư!")
+                else:
+                    st.warning("Cần file giá để thêm vật tư.")
+
         st.divider()
 
         # --- PHẦN XUẤT FILE ---
         with st.expander("⚙️ CẤU HÌNH VĂN BẢN & CHỮ KÝ", expanded=True):
             col_h1, col_h2 = st.columns(2)
             with col_h1:
-                # Thêm ô nhập tên Đội
                 ten_don_vi = st.text_input("Tên Đơn Vị (Dòng 1):", value="ĐỘI QUẢN LÝ ĐIỆN CẦN ĐƯỚC")
                 so_phuong_an = st.text_input("Số Phương án:", value="....../PA-PCTN")
                 ngay_thang = st.date_input("Ngày lập:", datetime.date.today())
@@ -194,13 +229,8 @@ with col_right:
             # --- ĐỊNH DẠNG STYLE ---
             s_base = {'font_name': 'Times New Roman', 'font_size': 13}
             
-            # Style Header Trái (Dòng 1: Đội QLĐ - KHÔNG ĐẬM)
             f_header_left_normal = wb.add_format({**s_base, 'bold': False, 'align': 'center', 'valign': 'center', 'text_wrap': True})
-            
-            # Style Header Trái (Dòng 2: Tổ KT - IN ĐẬM)
             f_header_left_bold = wb.add_format({**s_base, 'bold': True, 'align': 'center', 'valign': 'center', 'text_wrap': True})
-            
-            # Style Header Phải (Quốc hiệu - IN ĐẬM)
             f_header_right = wb.add_format({**s_base, 'bold': True, 'align': 'center', 'valign': 'top', 'text_wrap': True})
             
             f_date = wb.add_format({**s_base, 'italic': True, 'align': 'center'})
@@ -217,34 +247,21 @@ with col_right:
 
             all_summary = {} 
             
-            # ==========================
             # SHEET 1: BẢNG KÊ VTTB
-            # ==========================
             ws = wb.add_worksheet("BANG_KE_VTTB")
             ws.set_paper(9) # A4
             ws.set_margins(0.7, 0.7, 0.75, 0.75)
             
-            # --- HEADER SHEET 1 (SỬA LẠI THEO YÊU CẦU) ---
-            # Dòng 1: ĐỘI QUẢN LÝ ĐIỆN... (Không đậm)
             ws.merge_range("A1:C1", ten_don_vi, f_header_left_normal)
-            
-            # Dòng 2: TỔ KỸ THUẬT (In đậm)
             ws.merge_range("A2:C2", "TỔ KỸ THUẬT", f_header_left_bold)
-            
-            # Dòng 3: Số phương án
             ws.merge_range("A3:C3", f"Số: {so_phuong_an}", f_header_left_normal)
 
-            # Cột Phải: Quốc hiệu (Gộp dòng cho đẹp)
             ws.merge_range("D1:G2", "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n---------------", f_header_right)
-            
-            # Ngày tháng
             ws.merge_range("D3:G3", f"{dia_diem}, ngày {ngay_thang.day} tháng {ngay_thang.month} năm {ngay_thang.year}", f_date)
             
-            # Chỉnh chiều cao dòng cho thoáng
             ws.set_row(0, 20)
             ws.set_row(1, 20)
             
-            # Tiêu đề bảng
             curr = 5
             ws.merge_range(curr, 0, curr, 6, "BẢNG LIỆT KÊ VẬT TƯ THIẾT BỊ", f_title)
             curr += 1
@@ -255,11 +272,9 @@ with col_right:
             for c, h in enumerate(headers1): ws.write(curr, c, h, f_th)
             curr += 1
             
-            # Loop Data Sheet 1
             has_items_b1 = False
             for i, p in enumerate(st.session_state.projects):
                 df = p['data']
-                # Chuyển đổi số liệu
                 df["Thay Mới"] = pd.to_numeric(df["Thay Mới"], errors='coerce').fillna(0)
                 df["Tận Dụng"] = pd.to_numeric(df["Tận Dụng"], errors='coerce').fillna(0)
                 df["Thu Hồi"] = pd.to_numeric(df["Thu Hồi"], errors='coerce').fillna(0)
@@ -287,7 +302,6 @@ with col_right:
                 ws.merge_range(curr, 0, curr, 6, "(Không có)", f_td_center)
                 curr += 1
 
-            # Bảng Thu Hồi
             curr += 2
             ws.merge_range(curr, 0, curr, 6, "BẢNG LIỆT KÊ VẬT TƯ THU HỒI", f_title)
             curr += 1
@@ -323,7 +337,6 @@ with col_right:
                 ws.merge_range(curr, 0, curr, 6, "(Không có vật tư thu hồi)", f_td_center)
                 curr += 1
 
-            # Chữ ký Sheet 1
             curr += 3
             ws.write(curr, 1, "LẬP BẢNG", f_sign_title)
             ws.write(curr, 3, "TỔ KỸ THUẬT", f_sign_title)
@@ -338,9 +351,7 @@ with col_right:
             ws.set_column(1, 1, 40)
             ws.set_column(2, 6, 12)
 
-            # ==========================
             # SHEET 2: TỔNG HỢP CHUNG
-            # ==========================
             for p in st.session_state.projects:
                 for _, r in p['data'].iterrows():
                     sl_moi = pd.to_numeric(r["Thay Mới"], errors='coerce')
@@ -353,17 +364,9 @@ with col_right:
             ws_sum.set_paper(9)
             ws_sum.set_margins(0.7, 0.7, 0.75, 0.75)
 
-            # --- HEADER SHEET 2 (ĐỒNG BỘ VỚI SHEET 1 & THÊM NGÀY THÁNG) ---
-            # Dòng 1: ĐỘI... (Không đậm)
             ws_sum.merge_range("A1:C1", ten_don_vi, f_header_left_normal)
-            
-            # Dòng 2: TỔ KỸ THUẬT (In đậm)
             ws_sum.merge_range("A2:C2", "TỔ KỸ THUẬT", f_header_left_bold)
-            
-            # Bên phải: Quốc hiệu
             ws_sum.merge_range("D1:H2", "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập - Tự do - Hạnh phúc\n---------------", f_header_right)
-            
-            # Dòng 3: Thêm ngày tháng (FIX LỖI THIẾU NGÀY)
             ws_sum.merge_range("D3:H3", f"{dia_diem}, ngày {ngay_thang.day} tháng {ngay_thang.month} năm {ngay_thang.year}", f_date)
             
             ws_sum.set_row(0, 20)
@@ -396,7 +399,7 @@ with col_right:
             
             ridx += 3
             ws_sum.write(ridx, 2, "LẬP BẢNG", f_sign_title)
-            ws_sum.write(ridx, 4, "TỔ KỸ THUẬT", f_sign_title) # Sửa thành TỔ KỸ THUẬT cho khớp header
+            ws_sum.write(ridx, 4, "TỔ KỸ THUẬT", f_sign_title)
             ws_sum.merge_range(ridx, 6, ridx, 7, "GIÁM ĐỐC", f_sign_title)
 
             ridx += 5
